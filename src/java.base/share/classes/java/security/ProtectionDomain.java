@@ -34,7 +34,7 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import jdk.internal.misc.JavaSecurityAccess;
+
 import jdk.internal.misc.JavaSecurityProtectionDomainAccess;
 import static jdk.internal.misc.JavaSecurityProtectionDomainAccess.ProtectionDomainCache;
 import jdk.internal.misc.SharedSecrets;
@@ -72,52 +72,9 @@ public class ProtectionDomain {
             "true".equals(GetPropertyAction.privilegedGetProperty(
                 "jdk.security.filePermCompat"));
 
-    private static class JavaSecurityAccessImpl implements JavaSecurityAccess {
-
-        private JavaSecurityAccessImpl() {
-        }
-
-        @Override
-        public <T> T doIntersectionPrivilege(
-                PrivilegedAction<T> action,
-                final AccessControlContext stack,
-                final AccessControlContext context) {
-            if (action == null) {
-                throw new NullPointerException();
-            }
-
-            return AccessController.doPrivileged(
-                action,
-                getCombinedACC(context, stack)
-            );
-        }
-
-        @Override
-        public <T> T doIntersectionPrivilege(
-                PrivilegedAction<T> action,
-                AccessControlContext context) {
-            return doIntersectionPrivilege(action,
-                AccessController.getContext(), context);
-        }
-
-        @Override
-        public ProtectionDomain[] getProtectDomains(AccessControlContext context) {
-            return context.getContext();
-        }
-
-        private static AccessControlContext getCombinedACC(
-            AccessControlContext context, AccessControlContext stack) {
-            AccessControlContext acc =
-                new AccessControlContext(context, stack.getCombiner(), true);
-
-            return new AccessControlContext(stack.getContext(), acc).optimize();
-        }
-    }
-
     static {
         // setup SharedSecrets to allow access to doIntersectionPrivilege
         // methods and ProtectionDomain cache
-        SharedSecrets.setJavaSecurityAccess(new JavaSecurityAccessImpl());
         SharedSecrets.setJavaSecurityProtectionDomainAccess(
             new JavaSecurityProtectionDomainAccess() {
                 @Override

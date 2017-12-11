@@ -126,9 +126,7 @@ public final class InnocuousThread extends Thread {
     // Use Unsafe to access Thread group and ThreadGroup parent fields
     static {
         try {
-            ACC = new AccessControlContext(new ProtectionDomain[] {
-                new ProtectionDomain(null, null)
-            });
+            ACC = AccessController.getPrivilegedContext();
 
             // Find and use topmost ThreadGroup as parent of new group
             UNSAFE = jdk.internal.misc.Unsafe.getUnsafe();

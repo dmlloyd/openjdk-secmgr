@@ -35,7 +35,6 @@ import java.io.FilePermission;
 import java.io.ObjectInputStream;
 import java.io.RandomAccessFile;
 import java.security.ProtectionDomain;
-import java.security.AccessController;
 
 /** A repository of "shared secrets", which are a mechanism for
     calling implementation-private methods in another package without
@@ -59,12 +58,10 @@ public class SharedSecrets {
     private static JavaNetSocketAccess javaNetSocketAccess;
     private static JavaNetUriAccess javaNetUriAccess;
     private static JavaNetURLAccess javaNetURLAccess;
-    private static JavaNetURLClassLoaderAccess javaNetURLClassLoaderAccess;
     private static JavaNioAccess javaNioAccess;
     private static JavaIOFileDescriptorAccess javaIOFileDescriptorAccess;
     private static JavaIOFilePermissionAccess javaIOFilePermissionAccess;
     private static JavaSecurityProtectionDomainAccess javaSecurityProtectionDomainAccess;
-    private static JavaSecurityAccess javaSecurityAccess;
     private static JavaUtilZipFileAccess javaUtilZipFileAccess;
     private static JavaUtilResourceBundleAccess javaUtilResourceBundleAccess;
     private static JavaAWTAccess javaAWTAccess;
@@ -146,16 +143,6 @@ public class SharedSecrets {
         if (javaNetURLAccess == null)
             unsafe.ensureClassInitialized(java.net.URL.class);
         return javaNetURLAccess;
-    }
-
-    public static void setJavaNetURLClassLoaderAccess(JavaNetURLClassLoaderAccess jnua) {
-        javaNetURLClassLoaderAccess = jnua;
-    }
-
-    public static JavaNetURLClassLoaderAccess getJavaNetURLClassLoaderAccess() {
-        if (javaNetURLClassLoaderAccess == null)
-            unsafe.ensureClassInitialized(java.net.URLClassLoader.class);
-        return javaNetURLClassLoaderAccess;
     }
 
     public static void setJavaNetInetAddressAccess(JavaNetInetAddressAccess jna) {
@@ -245,17 +232,6 @@ public class SharedSecrets {
             if (javaSecurityProtectionDomainAccess == null)
                 unsafe.ensureClassInitialized(ProtectionDomain.class);
             return javaSecurityProtectionDomainAccess;
-    }
-
-    public static void setJavaSecurityAccess(JavaSecurityAccess jsa) {
-        javaSecurityAccess = jsa;
-    }
-
-    public static JavaSecurityAccess getJavaSecurityAccess() {
-        if (javaSecurityAccess == null) {
-            unsafe.ensureClassInitialized(AccessController.class);
-        }
-        return javaSecurityAccess;
     }
 
     public static JavaUtilZipFileAccess getJavaUtilZipFileAccess() {

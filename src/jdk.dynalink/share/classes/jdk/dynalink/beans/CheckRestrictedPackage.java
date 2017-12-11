@@ -86,15 +86,15 @@ package jdk.dynalink.beans;
 import java.lang.reflect.Modifier;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.Permission;
 import java.security.PrivilegedAction;
-import jdk.dynalink.internal.AccessControlContextFactory;
 
 /**
  * A utility class to check whether a given class is in a package with restricted access e.g. "sun.*" etc.
  */
 class CheckRestrictedPackage {
     private static final AccessControlContext NO_PERMISSIONS_CONTEXT =
-            AccessControlContextFactory.createAccessControlContext();
+        AccessController.getPrivilegedContext(new Permission[0]);
 
     /**
      * Returns true if the class is either not public, or it resides in a package with restricted access.

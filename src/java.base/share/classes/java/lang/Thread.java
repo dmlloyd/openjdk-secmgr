@@ -2053,6 +2053,14 @@ class Thread implements Runnable {
         getUncaughtExceptionHandler().uncaughtException(this, e);
     }
 
+    AccessControlContext getAndSetCurrentContext(final AccessControlContext acc) {
+        try { return inheritedAccessControlContext; } finally { inheritedAccessControlContext = acc; }
+    }
+
+    AccessControlContext getCurrentContext() {
+        return inheritedAccessControlContext;
+    }
+
     /**
      * Removes from the specified map any keys that have been enqueued
      * on the specified reference queue.

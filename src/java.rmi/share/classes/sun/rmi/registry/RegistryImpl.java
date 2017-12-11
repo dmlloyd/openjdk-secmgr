@@ -48,13 +48,8 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMIServerSocketFactory;
 import java.security.AccessControlContext;
 import java.security.AccessController;
-import java.security.CodeSource;
-import java.security.Policy;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.PermissionCollection;
-import java.security.Permissions;
-import java.security.ProtectionDomain;
 import java.text.MessageFormat;
 
 import jdk.internal.misc.SharedSecrets;
@@ -576,41 +571,20 @@ public class RegistryImpl extends java.rmi.server.RemoteServer
      * getAccessControlContext() in the sun.applet.AppletPanel class.
      */
     private static AccessControlContext getAccessControlContext(int port) {
-        // begin with permissions granted to all code in current policy
-        PermissionCollection perms = AccessController.doPrivileged(
-            new java.security.PrivilegedAction<PermissionCollection>() {
-                public PermissionCollection run() {
-                    CodeSource codesource = new CodeSource(null,
-                        (java.security.cert.Certificate[]) null);
-                    Policy p = java.security.Policy.getPolicy();
-                    if (p != null) {
-                        return p.getPermissions(codesource);
-                    } else {
-                        return new Permissions();
-                    }
-                }
-            });
-
         /*
          * Anyone can connect to the registry and the registry can connect
          * to and possibly download stubs from anywhere. Downloaded stubs and
          * related classes themselves are more tightly limited by RMI.
-         */
-        perms.add(new SocketPermission("*", "connect,accept"));
-        perms.add(new SocketPermission("localhost:"+port, "listen,accept"));
-
-        perms.add(new RuntimePermission("accessClassInPackage.sun.jvmstat.*"));
-        perms.add(new RuntimePermission("accessClassInPackage.sun.jvm.hotspot.*"));
-
-        perms.add(new FilePermission("<<ALL FILES>>", "read"));
-
-        /*
+         *
          * Create an AccessControlContext that consists of a single
-         * protection domain with only the permissions calculated above.
+         * protection domain with only these permissions.
          */
-        ProtectionDomain pd = new ProtectionDomain(
-            new CodeSource(null,
-                (java.security.cert.Certificate[]) null), perms);
-        return new AccessControlContext(new ProtectionDomain[] { pd });
+        return AccessController.getPrivilegedContext(
+            new SocketPermission("*", "connect,accept"),
+            new SocketPermission("localhost:"+port, "listen,accept"),
+            new RuntimePermission("accessClassInPackage.sun.jvmstat.*"),
+            new RuntimePermission("accessClassInPackage.sun.jvm.hotspot.*"),
+            new FilePermission("<<ALL FILES>>", "read")
+        );
     }
 }

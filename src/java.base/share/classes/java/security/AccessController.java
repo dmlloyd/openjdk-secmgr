@@ -25,7 +25,17 @@
 
 package java.security;
 
-import sun.security.util.Debug;
+import java.util.ArrayDeque;
+import java.util.EnumSet;
+import java.util.Iterator;
+import java.util.function.Function;
+import java.util.stream.Stream;
+
+import javax.security.auth.Subject;
+
+import jdk.internal.misc.JavaLangAccess;
+import jdk.internal.misc.SharedSecrets;
+import jdk.internal.misc.VM;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
 
@@ -264,6 +274,12 @@ import jdk.internal.reflect.Reflection;
 
 public final class AccessController {
 
+    static final class Holder {
+        static final JavaLangAccess LANG_ACCESS = SharedSecrets.getJavaLangAccess();
+        static final ProtectionDomain ROOT_DOMAIN = LANG_ACCESS.getRootProtectionDomain();
+        static final StackWalker WALKER = LANG_ACCESS.getStackWalkerInstance(EnumSet.of(StackWalker.Option.RETAIN_CLASS_REFERENCE, StackWalker.Option.SHOW_HIDDEN_FRAMES, StackWalker.Option.SHOW_REFLECT_FRAMES));
+    }
+
     /**
      * Don't allow anyone to instantiate an AccessController
      */
@@ -291,12 +307,23 @@ public final class AccessController {
      *
      * @see #doPrivileged(PrivilegedAction,AccessControlContext)
      * @see #doPrivileged(PrivilegedExceptionAction)
-     * @see #doPrivilegedWithCombiner(PrivilegedAction)
      * @see java.security.DomainCombiner
      */
 
     @CallerSensitive
-    public static native <T> T doPrivileged(PrivilegedAction<T> action);
+    public static <T> T doPrivileged(PrivilegedAction<T> action) {
+        if (VM.initLevel() < 1) {
+            return action.run();
+        }
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess javaLangAccess = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = javaLangAccess.getAndSetCurrentThreadAccessContext(thread, null);
+        try {
+            return action.run();
+        } finally {
+            javaLangAccess.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
+    }
 
     /**
      * Performs the specified {@code PrivilegedAction} with privileges
@@ -322,16 +349,20 @@ public final class AccessController {
      * @see java.security.DomainCombiner
      *
      * @since 1.6
+     *
+     * @deprecated Domain combiners are hazardous to your health
      */
+    @Deprecated
     @CallerSensitive
     public static <T> T doPrivilegedWithCombiner(PrivilegedAction<T> action) {
-        AccessControlContext acc = getStackAccessControlContext();
-        if (acc == null) {
-            return AccessController.doPrivileged(action);
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess javaLangAccess = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = javaLangAccess.getAndSetCurrentThreadAccessContext(thread, null);
+        try {
+            return action.run();
+        } finally {
+            javaLangAccess.getAndSetCurrentThreadAccessContext(thread, oldContext);
         }
-        DomainCombiner dc = acc.getAssignedCombiner();
-        return AccessController.doPrivileged(action,
-                                             preserveCombiner(dc, Reflection.getCallerClass()));
     }
 
 
@@ -369,8 +400,17 @@ public final class AccessController {
      * @see #doPrivileged(PrivilegedExceptionAction,AccessControlContext)
      */
     @CallerSensitive
-    public static native <T> T doPrivileged(PrivilegedAction<T> action,
-                                            AccessControlContext context);
+    public static <T> T doPrivileged(PrivilegedAction<T> action,
+                                            AccessControlContext context) {
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess javaLangAccess = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = javaLangAccess.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } finally {
+            javaLangAccess.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
+    }
 
 
     /**
@@ -421,13 +461,33 @@ public final class AccessController {
     public static <T> T doPrivileged(PrivilegedAction<T> action,
         AccessControlContext context, Permission... perms) {
 
-        AccessControlContext parent = getContext();
         if (perms == null) {
             throw new NullPointerException("null permissions parameter");
         }
-        Class <?> caller = Reflection.getCallerClass();
-        return AccessController.doPrivileged(action, createWrapper(null,
-            caller, parent, context, perms));
+        if (context == null) {
+            context = AccessControlContext.ROOT_CONTEXT;
+        }
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final Permissions permissions = new Permissions();
+        for (Permission perm : perms) {
+            if (perm != null) {
+                permissions.add(perm);
+            }
+        }
+        final Class<?> callerClass = Reflection.getCallerClass();
+        context = context.with(
+            new ProtectionDomain(
+                jla.getProtectionDomain(callerClass).getCodeSource(),
+                permissions
+            ),
+            false);
+        final Thread thread = Thread.currentThread();
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
 
@@ -478,22 +538,41 @@ public final class AccessController {
      * @see java.security.DomainCombiner
      *
      * @since 1.8
+     *
+     * @deprecated Domain combiners are hazardous to your health
      */
+    @Deprecated
     @CallerSensitive
     public static <T> T doPrivilegedWithCombiner(PrivilegedAction<T> action,
         AccessControlContext context, Permission... perms) {
 
-        AccessControlContext parent = getContext();
-        DomainCombiner dc = parent.getCombiner();
-        if (dc == null && context != null) {
-            dc = context.getCombiner();
-        }
         if (perms == null) {
             throw new NullPointerException("null permissions parameter");
         }
-        Class <?> caller = Reflection.getCallerClass();
-        return AccessController.doPrivileged(action, createWrapper(dc, caller,
-            parent, context, perms));
+        if (context == null) {
+            context = AccessControlContext.ROOT_CONTEXT;
+        }
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final Permissions permissions = new Permissions();
+        for (Permission perm : perms) {
+            if (perm != null) {
+                permissions.add(perm);
+            }
+        }
+        final Class<?> callerClass = Reflection.getCallerClass();
+        context = context.with(
+            new ProtectionDomain(
+                jla.getProtectionDomain(callerClass).getCodeSource(),
+                permissions
+            ),
+            true);
+        final Thread thread = Thread.currentThread();
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
     /**
@@ -520,13 +599,26 @@ public final class AccessController {
      *
      * @see #doPrivileged(PrivilegedAction)
      * @see #doPrivileged(PrivilegedExceptionAction,AccessControlContext)
-     * @see #doPrivilegedWithCombiner(PrivilegedExceptionAction)
      * @see java.security.DomainCombiner
      */
     @CallerSensitive
-    public static native <T> T
+    public static <T> T
         doPrivileged(PrivilegedExceptionAction<T> action)
-        throws PrivilegedActionException;
+        throws PrivilegedActionException {
+
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, null);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
+    }
 
 
     /**
@@ -556,70 +648,26 @@ public final class AccessController {
      * @see java.security.DomainCombiner
      *
      * @since 1.6
+     *
+     * @deprecated Domain combiners are hazardous to your health
      */
+    @Deprecated
     @CallerSensitive
     public static <T> T doPrivilegedWithCombiner(PrivilegedExceptionAction<T> action)
         throws PrivilegedActionException
     {
-        AccessControlContext acc = getStackAccessControlContext();
-        if (acc == null) {
-            return AccessController.doPrivileged(action);
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, null);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
         }
-        DomainCombiner dc = acc.getAssignedCombiner();
-        return AccessController.doPrivileged(action,
-                                             preserveCombiner(dc, Reflection.getCallerClass()));
-    }
-
-    /**
-     * preserve the combiner across the doPrivileged call
-     */
-    private static AccessControlContext preserveCombiner(DomainCombiner combiner,
-                                                         Class<?> caller)
-    {
-        return createWrapper(combiner, caller, null, null, null);
-    }
-
-    /**
-     * Create a wrapper to contain the limited privilege scope data.
-     */
-    private static AccessControlContext
-        createWrapper(DomainCombiner combiner, Class<?> caller,
-                      AccessControlContext parent, AccessControlContext context,
-                      Permission[] perms)
-    {
-        ProtectionDomain callerPD = getCallerPD(caller);
-        // check if caller is authorized to create context
-        if (context != null && !context.isAuthorized() &&
-            System.getSecurityManager() != null &&
-            !callerPD.impliesCreateAccessControlContext())
-        {
-            return getInnocuousAcc();
-        } else {
-            return new AccessControlContext(callerPD, combiner, parent,
-                                            context, perms);
-        }
-    }
-
-    private static class AccHolder {
-        // An AccessControlContext with no granted permissions.
-        // Only initialized on demand when getInnocuousAcc() is called.
-        static final AccessControlContext innocuousAcc =
-            new AccessControlContext(new ProtectionDomain[] {
-                                     new ProtectionDomain(null, null) });
-    }
-    private static AccessControlContext getInnocuousAcc() {
-        return AccHolder.innocuousAcc;
-    }
-
-    private static ProtectionDomain getCallerPD(final Class <?> caller) {
-        ProtectionDomain callerPd = doPrivileged
-            (new PrivilegedAction<>() {
-            public ProtectionDomain run() {
-                return caller.getProtectionDomain();
-            }
-        });
-
-        return callerPd;
     }
 
     /**
@@ -659,11 +707,24 @@ public final class AccessController {
      * @see #doPrivileged(PrivilegedAction,AccessControlContext)
      */
     @CallerSensitive
-    public static native <T> T
+    public static <T> T
         doPrivileged(PrivilegedExceptionAction<T> action,
                      AccessControlContext context)
-        throws PrivilegedActionException;
-
+        throws PrivilegedActionException
+    {
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
+    }
 
     /**
      * Performs the specified {@code PrivilegedExceptionAction} with
@@ -716,12 +777,37 @@ public final class AccessController {
                                      AccessControlContext context, Permission... perms)
         throws PrivilegedActionException
     {
-        AccessControlContext parent = getContext();
         if (perms == null) {
             throw new NullPointerException("null permissions parameter");
         }
-        Class <?> caller = Reflection.getCallerClass();
-        return AccessController.doPrivileged(action, createWrapper(null, caller, parent, context, perms));
+        if (context == null) {
+            context = AccessControlContext.ROOT_CONTEXT;
+        }
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final Permissions permissions = new Permissions();
+        for (Permission perm : perms) {
+            if (perm != null) {
+                permissions.add(perm);
+            }
+        }
+        final Class<?> callerClass = Reflection.getCallerClass();
+        context = context.with(
+            new ProtectionDomain(
+                jla.getProtectionDomain(callerClass).getCodeSource(),
+                permissions
+            ),
+            false);
+        final Thread thread = Thread.currentThread();
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
 
@@ -774,46 +860,67 @@ public final class AccessController {
      * @see java.security.DomainCombiner
      *
      * @since 1.8
+     *
+     * @deprecated Domain combiners are hazardous to your health
      */
+    @Deprecated
     @CallerSensitive
     public static <T> T doPrivilegedWithCombiner(PrivilegedExceptionAction<T> action,
                                                  AccessControlContext context,
                                                  Permission... perms)
         throws PrivilegedActionException
     {
-        AccessControlContext parent = getContext();
-        DomainCombiner dc = parent.getCombiner();
-        if (dc == null && context != null) {
-            dc = context.getCombiner();
-        }
         if (perms == null) {
             throw new NullPointerException("null permissions parameter");
         }
-        Class <?> caller = Reflection.getCallerClass();
-        return AccessController.doPrivileged(action, createWrapper(dc, caller,
-            parent, context, perms));
+        if (context == null) {
+            context = AccessControlContext.ROOT_CONTEXT;
+        }
+        final JavaLangAccess jla = Holder.LANG_ACCESS;
+        final Permissions permissions = new Permissions();
+        for (Permission perm : perms) {
+            if (perm != null) {
+                permissions.add(perm);
+            }
+        }
+        final Class<?> callerClass = Reflection.getCallerClass();
+        context = context.with(
+            new ProtectionDomain(
+                jla.getProtectionDomain(callerClass).getCodeSource(),
+                permissions
+            ),
+            true);
+        final Thread thread = Thread.currentThread();
+        final AccessControlContext oldContext = jla.getAndSetCurrentThreadAccessContext(thread, context);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            jla.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
     /**
-     * Returns the AccessControl context. i.e., it gets
-     * the protection domains of all the callers on the stack,
-     * starting at the first class with a non-null
-     * ProtectionDomain.
+     * Determine if the given {@code frame} is some kind of {@code doPrivileged} method, which would mean that the
+     * stack search terminates at the next method.
      *
-     * @return the access control context based on the current stack or
-     *         null if there was only privileged system code.
+     * @param frame the frame to check
+     * @return {@code true} if it is some kind of {@code doPrivileged} method
      */
-
-    private static native AccessControlContext getStackAccessControlContext();
-
-
-    /**
-     * Returns the "inherited" AccessControl context. This is the context
-     * that existed when the thread was created. Package private so
-     * AccessControlContext can use it.
-     */
-
-    static native AccessControlContext getInheritedAccessControlContext();
+    static boolean isDoPrivileged(StackWalker.StackFrame frame) {
+        if (frame.getDeclaringClass() == AccessController.class) {
+            String s = frame.getMethodName();
+            return s.equals("doPrivileged") || s.equals("doPrivilegedWithCombiner");
+        } else if (frame.getDeclaringClass() == Subject.class) {
+            String s = frame.getMethodName();
+            return s.equals("doAsPrivileged");
+        } else {
+            return false;
+        }
+    }
 
     /**
      * This method takes a "snapshot" of the current calling context, which
@@ -828,14 +935,49 @@ public final class AccessController {
 
     public static AccessControlContext getContext()
     {
-        AccessControlContext acc = getStackAccessControlContext();
-        if (acc == null) {
-            // all we had was privileged system code. We don't want
-            // to return null though, so we construct a real ACC.
-            return new AccessControlContext(null, true);
+        if (VM.initLevel() < 1) {
+            return null;
         } else {
-            return acc.optimize();
+            return Holder.WALKER.walk(GET_CONTEXT);
         }
+    }
+
+    /**
+     * Get a snapshot of the current calling context as if {@code doPrivileged(() -> AccessController.getContext())}
+     * were called.  This method is generally more efficient.
+     *
+     * @return the AccessControlContext based on the current context.
+     */
+    public static AccessControlContext getPrivilegedContext() {
+        final Class<?> callerClass = Holder.WALKER.getCallerClass();
+        final ProtectionDomain domain = Holder.LANG_ACCESS.getProtectionDomain(callerClass);
+        return AccessControlContext.ROOT_CONTEXT.with(domain);
+    }
+
+    /**
+     * Get a snapshot of the current calling context as if {@code doPrivileged(() -> AccessController.getContext())}
+     * were called with a restricted permission set.
+     *
+     * @param perms the permissions to restrict to
+     * @return the AccessControlContext based on the current context.
+     */
+    public static AccessControlContext getPrivilegedContext(Permission... perms) {
+        final Class<?> callerClass = Holder.WALKER.getCallerClass();
+        final ProtectionDomain domain = Holder.LANG_ACCESS.getProtectionDomain(callerClass);
+        AccessControlContext context = AccessControlContext.ROOT_CONTEXT.with(domain);
+        final Permissions permissions = new Permissions();
+        if (perms != null) for (Permission perm : perms) {
+            if (perm != null) {
+                permissions.add(perm);
+            }
+        }
+        context = context.with(
+            new ProtectionDomain(
+                domain.getCodeSource(),
+                permissions
+            ),
+            false);
+        return context;
     }
 
     /**
@@ -862,36 +1004,175 @@ public final class AccessController {
         //System.err.println("checkPermission "+perm);
         //Thread.currentThread().dumpStack();
 
+        // This method is the crux of the userspace access controller implementation.
+        // Permission checking happens in this order:
+        //  1) Check any in-effect explicit permission limits
+        //  2) Check the call stack
+        //  3) Check any inherited access control context
+
         if (perm == null) {
             throw new NullPointerException("permission can't be null");
         }
 
-        AccessControlContext stack = getStackAccessControlContext();
-        // if context is null, we had privileged system code on the stack.
-        if (stack == null) {
-            Debug debug = AccessControlContext.getDebug();
-            boolean dumpDebug = false;
-            if (debug != null) {
-                dumpDebug = !Debug.isOn("codebase=");
-                dumpDebug &= !Debug.isOn("permission=") ||
-                    Debug.isOn("permission=" + perm.getClass().getCanonicalName());
-            }
+        // do the permission check!
+        Holder.WALKER.walk(new PermissionCheckFunction(perm));
+    }
 
-            if (dumpDebug && Debug.isOn("stack")) {
-                Thread.dumpStack();
-            }
+    // stack-crawling function implementations
 
-            if (dumpDebug && Debug.isOn("domain")) {
-                debug.println("domain (context is null)");
-            }
+    static final Function<Stream<StackWalker.StackFrame>, AccessControlContext> GET_CONTEXT = new Function<>() {
+        public AccessControlContext apply(final Stream<StackWalker.StackFrame> stream) {
+            final Iterator<StackWalker.StackFrame> iterator = stream.iterator();
+            assert iterator.hasNext();
 
-            if (dumpDebug) {
-                debug.println("access allowed "+perm);
+            // The frame of getContext()
+            StackWalker.StackFrame current = iterator.next();
+            assert current.getDeclaringClass() == AccessController.class;
+            assert current.getMethodName().equals("getContext");
+            if (! iterator.hasNext()) {
+                // we were called directly from JNI, which is unlikely but technically allowed
+                return AccessControlContext.ROOT_CONTEXT;
             }
-            return;
+            final Thread thread = Thread.currentThread();
+            final JavaLangAccess jla = Holder.LANG_ACCESS;
+
+            // The frame of our immediate caller
+            current = iterator.next();
+            // doPrivileged() should not call getContext()... but if it did...
+            if (isDoPrivileged(current)) {
+                return AccessControlContext.ROOT_CONTEXT;
+            }
+            // if this first frame has a cached ACC then we're already done
+            AccessControlContext context = jla.getCachedAccessControlContext(current);
+            if (context != null) {
+                return context;
+            }
+            // otherwise, we have to remember it to repopulate the cache
+            ArrayDeque<StackWalker.StackFrame> fixFrames = new ArrayDeque<>();
+            fixFrames.add(current);
+            while (iterator.hasNext()) {
+                current = iterator.next();
+                if (isDoPrivileged(current)) {
+                    // the next frame is the basis of the ACC
+                    if (! iterator.hasNext()) {
+                        // doPrivileged was called directly from JNI
+                        context = AccessControlContext.ROOT_CONTEXT;
+                        break; // for clarity
+                    } else {
+                        current = iterator.next();
+                        context = jla.getCachedAccessControlContext(current);
+                        if (context == null) {
+                            // we have to start from the saved context
+                            fixFrames.add(current);
+                            context = jla.getCurrentThreadAccessContext(thread);
+                            if (context == null) context = AccessControlContext.ROOT_CONTEXT;
+                            break;
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    context = jla.getCachedAccessControlContext(current);
+                    if (context == null) {
+                        fixFrames.add(current);
+                    } else {
+                        // this is our starting point
+                        break;
+                    }
+                }
+            }
+            if (context == null) {
+                // we hit the bottom of the stack and never found a cached context
+                context = jla.getCurrentThreadAccessContext(thread);
+                if (context == null) context = AccessControlContext.ROOT_CONTEXT;
+            }
+            // now, work our way forward from here and fill in the cached ACC on each stack frame
+            while (! fixFrames.isEmpty()) {
+                current = fixFrames.pollFirst();
+                // get the PD
+                ProtectionDomain domain = jla.getProtectionDomain(current.getDeclaringClass());
+                context = context.with(domain, true);
+                // TODO: without this method being implemented, we're doing a bit more work than necessary
+                jla.setCachedAccessControlContext(current, context);
+            }
+            return context;
+        }
+    };
+
+    static class PermissionCheckFunction implements Function<Stream<StackWalker.StackFrame>, Void> {
+        private final Permission perm;
+
+        PermissionCheckFunction(final Permission perm) {
+            this.perm = perm;
         }
 
-        AccessControlContext acc = stack.optimize();
-        acc.checkPermission(perm);
+        @SuppressWarnings("deprecation")
+        public Void apply(final Stream<StackWalker.StackFrame> stream) {
+            final Iterator<StackWalker.StackFrame> iterator = stream.iterator();
+            assert iterator.hasNext();
+
+            // The frame of checkPermission()
+            StackWalker.StackFrame current = iterator.next();
+            assert current.getDeclaringClass() == AccessController.class;
+            assert current.getMethodName().equals("checkPermission");
+
+            if (! iterator.hasNext()) {
+                // checkPermission() was called directly from JNI
+                return null;
+            }
+
+            final JavaLangAccess jla = Holder.LANG_ACCESS;
+
+            // First we have to figure out if we have a domain combiner.  If we do, it changes everything.
+            AccessControlContext context = jla.getCurrentThreadAccessContext(Thread.currentThread());
+            DomainCombiner domainCombiner = context.getDomainCombiner();
+            if (domainCombiner != null) {
+                final AccessControlContext wholeContext = getContext();
+                assert wholeContext.getDomainCombiner() == domainCombiner;
+                final ProtectionDomain[] domains = wholeContext.getProtectionDomains();
+                final ProtectionDomain[] combined = domainCombiner.combine(domains, AccessControlContext.NO_DOMAINS);
+                final AccessControlContext finalContext = AccessControlContext.ROOT_CONTEXT.withAll(combined);
+                finalContext.checkPermission(perm);
+                return null;
+            }
+
+            boolean stop = false;
+
+            while (iterator.hasNext() && ! stop) {
+                current = iterator.next();
+                if (isDoPrivileged(current)) {
+                    if (! iterator.hasNext()) {
+                        // doPrivileged() was called directly from JNI
+                        break;
+                    }
+                    current = iterator.next();
+                    // this is the last frame
+                    stop = true;
+                }
+
+                /*
+                 todo: determine that this is all more efficient than turning checkPermission()
+                 into getContext().checkPermission() - which could be slower the first time but
+                 faster thereafter
+                 */
+                AccessControlContext cached = jla.getCachedAccessControlContext(current);
+                if (cached != null) {
+                    cached.checkPermission(perm);
+                    // done; cached contains the full, as-yet-unchecked context
+                    return null;
+                }
+
+                // else check it by hand
+                final ProtectionDomain domain = jla.getProtectionDomain(current.getDeclaringClass());
+                if (! domain.implies(perm)) {
+                    // TODO: we can't really call PD.toString from here because PD isn't final and who knows what it might do
+                    throw new AccessControlException("Permission is denied by protection domain " + domain, perm);
+                }
+            }
+
+            context.checkPermission(perm);
+            // nothing more to check
+            return null;
+        }
     }
 }

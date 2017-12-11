@@ -613,20 +613,6 @@ JNIEXPORT jbyte JNICALL JVM_ConstantPoolGetTagAt
 (JNIEnv *env, jobject unused, jobject jcpool, jint index);
 
 /*
- * java.security.*
- */
-
-JNIEXPORT jobject JNICALL
-JVM_DoPrivileged(JNIEnv *env, jclass cls,
-                 jobject action, jobject context, jboolean wrapException);
-
-JNIEXPORT jobject JNICALL
-JVM_GetInheritedAccessControlContext(JNIEnv *env, jclass cls);
-
-JNIEXPORT jobject JNICALL
-JVM_GetStackAccessControlContext(JNIEnv *env, jclass cls);
-
-/*
  * Signal support, used to implement the shutdown sequence.  Every VM must
  * support JVM_SIGINT and JVM_SIGTERM, raising the former for user interrupts
  * (^C) and the latter for external termination (kill, system shutdown, etc.).

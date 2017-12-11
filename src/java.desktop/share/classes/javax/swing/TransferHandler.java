@@ -46,9 +46,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 
 import java.security.AccessControlContext;
-import java.security.ProtectionDomain;
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaSecurityAccess;
 
 import sun.awt.AWTAccessor;
 
@@ -1701,9 +1698,6 @@ public class TransferHandler implements Serializable {
                     && ((JComponent)sender).getTransferHandler() == null);
         }
 
-        private static final JavaSecurityAccess javaSecurityAccess =
-            SharedSecrets.getJavaSecurityAccess();
-
         public void actionPerformed(final ActionEvent e) {
             final Object src = e.getSource();
 
@@ -1718,17 +1712,7 @@ public class TransferHandler implements Serializable {
             final AccessControlContext srcAcc = AWTAccessor.getComponentAccessor().getAccessControlContext((Component)src);
             final AccessControlContext eventAcc = AWTAccessor.getAWTEventAccessor().getAccessControlContext(e);
 
-                if (srcAcc == null) {
-                    javaSecurityAccess.doIntersectionPrivilege(action, stack, eventAcc);
-                } else {
-                    javaSecurityAccess.doIntersectionPrivilege(
-                        new PrivilegedAction<Void>() {
-                            public Void run() {
-                                javaSecurityAccess.doIntersectionPrivilege(action, eventAcc);
-                                return null;
-                             }
-                    }, stack, srcAcc);
-                }
+            AccessController.doPrivileged(action, stack.with(eventAcc).with(srcAcc));
         }
 
         private void actionPerformedImpl(ActionEvent e) {

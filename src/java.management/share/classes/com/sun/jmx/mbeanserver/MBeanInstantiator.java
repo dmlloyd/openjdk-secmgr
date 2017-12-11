@@ -767,7 +767,7 @@ public class MBeanInstantiator {
         permissions.add(new MBeanPermission("*", null, name, "getClassLoader"));
         ProtectionDomain protectionDomain = new ProtectionDomain(null, permissions);
         ProtectionDomain[] domains = {protectionDomain};
-        AccessControlContext ctx = new AccessControlContext(domains);
+        AccessControlContext ctx = AccessController.getPrivilegedContext().withAll(domains);
         ClassLoader loader = AccessController.doPrivileged(new PrivilegedAction<ClassLoader>() {
             public ClassLoader run() {
                 return clr.getClassLoader(name);

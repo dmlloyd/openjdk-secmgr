@@ -1541,7 +1541,7 @@ public class JmodTask {
         try {
             return MessageFormat.format(ResourceBundleHelper.bundle.getString(key), args);
         } catch (MissingResourceException e) {
-            throw new InternalError("Missing message: " + key);
+            throw new InternalError("Missing message: " + key, e);
         }
     }
 
@@ -1553,7 +1553,7 @@ public class JmodTask {
             try {
                 bundle = ResourceBundle.getBundle("jdk.tools.jmod.resources.jmod", locale);
             } catch (MissingResourceException e) {
-                throw new InternalError("Cannot find jmod resource bundle for locale " + locale);
+                throw new InternalError("Cannot find jmod resource bundle for locale " + locale, e);
             }
         }
     }

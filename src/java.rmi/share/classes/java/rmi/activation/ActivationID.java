@@ -42,10 +42,9 @@ import java.rmi.server.RemoteRef;
 import java.rmi.server.UID;
 import java.security.AccessControlContext;
 import java.security.AccessController;
-import java.security.Permissions;
+import java.security.Permission;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.ProtectionDomain;
 
 /**
  * Activation makes use of special identifiers to denote remote
@@ -88,12 +87,7 @@ public class ActivationID implements Serializable {
     private static final long serialVersionUID = -4608673054848209235L;
 
     /** an AccessControlContext with no permissions */
-    private static final AccessControlContext NOPERMS_ACC;
-    static {
-        Permissions perms = new Permissions();
-        ProtectionDomain[] pd = { new ProtectionDomain(null, perms) };
-        NOPERMS_ACC = new AccessControlContext(pd);
-    }
+    private static final AccessControlContext NOPERMS_ACC = AccessController.getPrivilegedContext(new Permission[0]);
 
     /**
      * The constructor for <code>ActivationID</code> takes a single

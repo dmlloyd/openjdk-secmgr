@@ -50,8 +50,6 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import jdk.internal.misc.SharedSecrets;
-
 /**
  * The main class to parse JavaBeans XML archive.
  *
@@ -371,7 +369,7 @@ public final class DocumentHandler extends DefaultHandler {
             throw new SecurityException("AccessControlContext is not set");
         }
         AccessControlContext stack = AccessController.getContext();
-        SharedSecrets.getJavaSecurityAccess().doIntersectionPrivilege(new PrivilegedAction<Void>() {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
             public Void run() {
                 try {
                     SAXParserFactory.newInstance().newSAXParser().parse(input, DocumentHandler.this);
@@ -391,7 +389,7 @@ public final class DocumentHandler extends DefaultHandler {
                 }
                 return null;
             }
-        }, stack, this.acc);
+        }, stack.with(this.acc));
     }
 
     /**

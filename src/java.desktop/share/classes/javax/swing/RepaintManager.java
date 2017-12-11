@@ -35,8 +35,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.applet.*;
 
-import jdk.internal.misc.JavaSecurityAccess;
-import jdk.internal.misc.SharedSecrets;
 import sun.awt.AWTAccessor;
 import sun.awt.AppContext;
 import sun.awt.DisplayChangedListener;
@@ -185,9 +183,6 @@ public class RepaintManager
      * Runnable used to process all repaint/revalidate requests.
      */
     private final ProcessingRunnable processingRunnable;
-
-    private static final JavaSecurityAccess javaSecurityAccess =
-            SharedSecrets.getJavaSecurityAccess();
 
     /**
      * Listener installed to detect display changes. When display changes,
@@ -600,12 +595,12 @@ public class RepaintManager
                     AccessControlContext stack = AccessController.getContext();
                     AccessControlContext acc =
                         AWTAccessor.getComponentAccessor().getAccessControlContext(c);
-                    javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Void>() {
+                    AccessController.doPrivileged(new PrivilegedAction<Void>() {
                         public Void run() {
                             r.run();
                             return null;
                         }
-                    }, stack, acc);
+                    }, stack.with(acc));
                 }
             });
         }
@@ -731,13 +726,13 @@ public class RepaintManager
             AccessControlContext stack = AccessController.getContext();
             AccessControlContext acc =
                 AWTAccessor.getComponentAccessor().getAccessControlContext(c);
-            javaSecurityAccess.doIntersectionPrivilege(
+            AccessController.doPrivileged(
                 new PrivilegedAction<Void>() {
                     public Void run() {
                         c.validate();
                         return null;
                     }
-                }, stack, acc);
+                }, stack.with(acc));
         }
     }
 
@@ -837,7 +832,7 @@ public class RepaintManager
                 AccessControlContext stack = AccessController.getContext();
                 AccessControlContext acc =
                     AWTAccessor.getComponentAccessor().getAccessControlContext(dirtyComponent);
-                javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Void>() {
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
                     public Void run() {
                         Rectangle rect = tmpDirtyComponents.get(dirtyComponent);
                         // Sometimes when RepaintManager is changed during the painting
@@ -886,7 +881,7 @@ public class RepaintManager
 
                         return null;
                     }
-                }, stack, acc);
+                }, stack.with(acc));
             }
         } finally {
             painting = false;

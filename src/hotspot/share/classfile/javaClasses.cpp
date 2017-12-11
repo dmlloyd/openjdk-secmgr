@@ -1219,7 +1219,6 @@ void java_lang_Class::set_classRedefinedCount(oop the_class_mirror, int value) {
 int java_lang_Thread::_name_offset = 0;
 int java_lang_Thread::_group_offset = 0;
 int java_lang_Thread::_contextClassLoader_offset = 0;
-int java_lang_Thread::_inheritedAccessControlContext_offset = 0;
 int java_lang_Thread::_priority_offset = 0;
 int java_lang_Thread::_eetop_offset = 0;
 int java_lang_Thread::_daemon_offset = 0;
@@ -1238,7 +1237,6 @@ void java_lang_Thread::compute_offsets() {
   compute_offset(_name_offset,      k, vmSymbols::name_name(),      vmSymbols::string_signature());
   compute_offset(_group_offset,     k, vmSymbols::group_name(),     vmSymbols::threadgroup_signature());
   compute_offset(_contextClassLoader_offset, k, vmSymbols::contextClassLoader_name(), vmSymbols::classloader_signature());
-  compute_offset(_inheritedAccessControlContext_offset, k, vmSymbols::inheritedAccessControlContext_name(), vmSymbols::accesscontrolcontext_signature());
   compute_offset(_priority_offset,  k, vmSymbols::priority_name(),  vmSymbols::int_signature());
   compute_offset(_daemon_offset,    k, vmSymbols::daemon_name(),    vmSymbols::bool_signature());
   compute_offset(_eetop_offset,     k, vmSymbols::eetop_name(),     vmSymbols::long_signature());
@@ -1318,10 +1316,6 @@ void java_lang_Thread::set_daemon(oop java_thread) {
 
 oop java_lang_Thread::context_class_loader(oop java_thread) {
   return java_thread->obj_field(_contextClassLoader_offset);
-}
-
-oop java_lang_Thread::inherited_access_control_context(oop java_thread) {
-  return java_thread->obj_field(_inheritedAccessControlContext_offset);
 }
 
 
@@ -3406,64 +3400,6 @@ DependencyContext java_lang_invoke_MethodHandleNatives_CallSiteContext::vmdepend
   return dep_ctx;
 }
 
-// Support for java_security_AccessControlContext
-
-int java_security_AccessControlContext::_context_offset = 0;
-int java_security_AccessControlContext::_privilegedContext_offset = 0;
-int java_security_AccessControlContext::_isPrivileged_offset = 0;
-int java_security_AccessControlContext::_isAuthorized_offset = -1;
-
-void java_security_AccessControlContext::compute_offsets() {
-  assert(_isPrivileged_offset == 0, "offsets should be initialized only once");
-  fieldDescriptor fd;
-  InstanceKlass* ik = SystemDictionary::AccessControlContext_klass();
-
-  if (!ik->find_local_field(vmSymbols::context_name(), vmSymbols::protectiondomain_signature(), &fd)) {
-    fatal("Invalid layout of java.security.AccessControlContext");
-  }
-  _context_offset = fd.offset();
-
-  if (!ik->find_local_field(vmSymbols::privilegedContext_name(), vmSymbols::accesscontrolcontext_signature(), &fd)) {
-    fatal("Invalid layout of java.security.AccessControlContext");
-  }
-  _privilegedContext_offset = fd.offset();
-
-  if (!ik->find_local_field(vmSymbols::isPrivileged_name(), vmSymbols::bool_signature(), &fd)) {
-    fatal("Invalid layout of java.security.AccessControlContext");
-  }
-  _isPrivileged_offset = fd.offset();
-
-  // The offset may not be present for bootstrapping with older JDK.
-  if (ik->find_local_field(vmSymbols::isAuthorized_name(), vmSymbols::bool_signature(), &fd)) {
-    _isAuthorized_offset = fd.offset();
-  }
-}
-
-
-bool java_security_AccessControlContext::is_authorized(Handle context) {
-  assert(context.not_null() && context->klass() == SystemDictionary::AccessControlContext_klass(), "Invalid type");
-  assert(_isAuthorized_offset != -1, "should be set");
-  return context->bool_field(_isAuthorized_offset) != 0;
-}
-
-oop java_security_AccessControlContext::create(objArrayHandle context, bool isPrivileged, Handle privileged_context, TRAPS) {
-  assert(_isPrivileged_offset != 0, "offsets should have been initialized");
-  // Ensure klass is initialized
-  SystemDictionary::AccessControlContext_klass()->initialize(CHECK_0);
-  // Allocate result
-  oop result = SystemDictionary::AccessControlContext_klass()->allocate_instance(CHECK_0);
-  // Fill in values
-  result->obj_field_put(_context_offset, context());
-  result->obj_field_put(_privilegedContext_offset, privileged_context());
-  result->bool_field_put(_isPrivileged_offset, isPrivileged);
-  // whitelist AccessControlContexts created by the JVM if present
-  if (_isAuthorized_offset != -1) {
-    result->bool_field_put(_isAuthorized_offset, true);
-  }
-  return result;
-}
-
-
 // Support for java_lang_ClassLoader
 
 bool java_lang_ClassLoader::offsets_computed = false;
@@ -3883,7 +3819,6 @@ void JavaClasses::compute_offsets() {
   java_lang_invoke_MethodType::compute_offsets();
   java_lang_invoke_CallSite::compute_offsets();
   java_lang_invoke_MethodHandleNatives_CallSiteContext::compute_offsets();
-  java_security_AccessControlContext::compute_offsets();
   // Initialize reflection classes. The layouts of these classes
   // changed with the new reflection implementation in JDK 1.4, and
   // since the Universe doesn't know what JDK version it is until this

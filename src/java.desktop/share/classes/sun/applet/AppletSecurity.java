@@ -25,23 +25,16 @@
 
 package sun.applet;
 
-import java.io.File;
-import java.io.FilePermission;
-import java.io.IOException;
-import java.io.FileDescriptor;
-import java.net.URL;
 import java.net.URLClassLoader;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.net.SocketPermission;
+import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.HashSet;
-import java.util.StringTokenizer;
 import java.security.*;
-import java.lang.reflect.*;
-import jdk.internal.misc.JavaNetURLClassLoaderAccess;
-import jdk.internal.misc.JavaSecurityAccess;
+import java.util.function.Function;
+import java.util.stream.Stream;
+
+import jdk.internal.misc.JavaLangAccess;
 import jdk.internal.misc.SharedSecrets;
 import sun.awt.AWTSecurityManager;
 import sun.awt.AppContext;
@@ -56,9 +49,8 @@ import sun.security.util.SecurityConstants;
  */
 public
 class AppletSecurity extends AWTSecurityManager {
-    private static final JavaNetURLClassLoaderAccess JNUCLA
-            = SharedSecrets.getJavaNetURLClassLoaderAccess();
-    private static final JavaSecurityAccess JSA = SharedSecrets.getJavaSecurityAccess();
+    private static final JavaLangAccess JLA = SharedSecrets.getJavaLangAccess();
+    private static final StackWalker WALKER = JLA.getStackWalkerInstance(EnumSet.of(StackWalker.Option.RETAIN_CLASS_REFERENCE, StackWalker.Option.SHOW_HIDDEN_FRAMES, StackWalker.Option.SHOW_REFLECT_FRAMES));
 
     /**
      * Construct and initialize.
@@ -142,35 +134,22 @@ class AppletSecurity extends AWTSecurityManager {
                 loader = AccessController.doPrivileged(
                     new PrivilegedAction<ClassLoader>() {
                         public ClassLoader run() {
-
-                            AccessControlContext acc = null;
-                            ProtectionDomain[] pds = null;
-
-                            try {
-                                acc = JNUCLA.getAccessControlContext(ld);
-                                if (acc == null) {
+                            return WALKER.walk(new Function<Stream<StackWalker.StackFrame>, ClassLoader>() {
+                                public ClassLoader apply(final Stream<StackWalker.StackFrame> stream) {
+                                    final Iterator<StackWalker.StackFrame> iterator = stream.iterator();
+                                    while (iterator.hasNext()) {
+                                        final StackWalker.StackFrame frame = iterator.next();
+                                        final ClassLoader classLoader = frame.getDeclaringClass().getClassLoader();
+                                        if (classLoader instanceof AppletClassLoader) {
+                                            return classLoader;
+                                        }
+                                    }
                                     return null;
                                 }
-
-                                pds = JSA.getProtectDomains(acc);
-                                if (pds == null) {
-                                    return null;
-                                }
-                            } catch (Exception e) {
-                                throw new UnsupportedOperationException(e);
-                            }
-
-                            for (int i=0; i<pds.length; i++) {
-                                ClassLoader cl = pds[i].getClassLoader();
-
-                                if (cl instanceof AppletClassLoader) {
-                                        return cl;
-                                }
-                            }
-
-                            return null;
+                            });
                         }
-                    });
+                    }
+                );
 
                 if (loader != null) {
                     return (AppletClassLoader) loader;

@@ -36,9 +36,7 @@
 // All dependencies on layout of actual Java classes should be kept here.
 // If the layout of any of the classes above changes the offsets must be adjusted.
 //
-// For most classes we hardwire the offsets for performance reasons. In certain
-// cases (e.g. java.security.AccessControlContext) we compute the offsets at
-// startup since the layout here differs between JDK1.2 and JDK1.3.
+// For most classes we hardwire the offsets for performance reasons.
 //
 // Note that fields (static and non-static) are arranged with oops before non-oops
 // on a per class basis. The offsets below have to reflect this ordering.
@@ -291,7 +289,6 @@ class java_lang_Thread : AllStatic {
   static int _name_offset;
   static int _group_offset;
   static int _contextClassLoader_offset;
-  static int _inheritedAccessControlContext_offset;
   static int _priority_offset;
   static int _eetop_offset;
   static int _daemon_offset;
@@ -1196,28 +1193,6 @@ public:
   }
   static bool is_instance(oop obj);
 };
-
-// Interface to java.security.AccessControlContext objects
-
-class java_security_AccessControlContext: AllStatic {
- private:
-  // Note that for this class the layout changed between JDK1.2 and JDK1.3,
-  // so we compute the offsets at startup rather than hard-wiring them.
-  static int _context_offset;
-  static int _privilegedContext_offset;
-  static int _isPrivileged_offset;
-  static int _isAuthorized_offset;
-
-  static void compute_offsets();
- public:
-  static oop create(objArrayHandle context, bool isPrivileged, Handle privileged_context, TRAPS);
-
-  static bool is_authorized(Handle context);
-
-  // Debugging/initialization
-  friend class JavaClasses;
-};
-
 
 // Interface to java.lang.ClassLoader objects
 

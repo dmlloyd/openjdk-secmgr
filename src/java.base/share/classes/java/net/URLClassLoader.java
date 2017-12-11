@@ -52,8 +52,6 @@ import java.util.jar.Manifest;
 
 import jdk.internal.loader.Resource;
 import jdk.internal.loader.URLClassPath;
-import jdk.internal.misc.JavaNetURLClassLoaderAccess;
-import jdk.internal.misc.SharedSecrets;
 import jdk.internal.perf.PerfCounter;
 import sun.net.www.ParseUtil;
 import sun.security.util.SecurityConstants;
@@ -848,14 +846,6 @@ public class URLClassLoader extends SecureClassLoader implements Closeable {
     }
 
     static {
-        SharedSecrets.setJavaNetURLClassLoaderAccess(
-            new JavaNetURLClassLoaderAccess() {
-                @Override
-                public AccessControlContext getAccessControlContext(URLClassLoader u) {
-                    return u.acc;
-                }
-            }
-        );
         ClassLoader.registerAsParallelCapable();
     }
 }

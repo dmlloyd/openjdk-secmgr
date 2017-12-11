@@ -121,13 +121,9 @@ final class DGCClient {
      * An AccessControlContext with only socket permissions,
      * suitable for an RMIClientSocketFactory.
      */
-    private static final AccessControlContext SOCKET_ACC;
-    static {
-        Permissions perms = new Permissions();
-        perms.add(new SocketPermission("*", "connect,resolve"));
-        ProtectionDomain[] pd = { new ProtectionDomain(null, perms) };
-        SOCKET_ACC = new AccessControlContext(pd);
-    }
+    private static final AccessControlContext SOCKET_ACC = AccessController.getPrivilegedContext(
+        new SocketPermission("*", "connect,resolve")
+    );
 
     /*
      * Disallow anyone from creating one of these.
