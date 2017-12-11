@@ -31,12 +31,9 @@ import java.rmi.UnmarshalException;
 import java.rmi.server.Unreferenced;
 import java.security.AccessControlContext;
 import java.security.AccessController;
-import java.security.Permission;
-import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.security.ProtectionDomain;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -135,7 +132,7 @@ public class RMIConnectionImpl implements RMIConnection, Unreferenced {
                     return mbeanServer.getClassLoaderRepository();
                 }
             },
-            withPermissions(new MBeanPermission("*", "getClassLoaderRepository"))
+            AccessController.getPrivilegedContext(new MBeanPermission("*", "getClassLoaderRepository"))
         );
         this.classLoaderWithRepository = AccessController.doPrivileged(
             new PrivilegedAction<ClassLoaderWithRepository>() {
@@ -145,7 +142,7 @@ public class RMIConnectionImpl implements RMIConnection, Unreferenced {
                         dcl);
                 }
             },
-            withPermissions(new RuntimePermission("createClassLoader"))
+            AccessController.getPrivilegedContext(new RuntimePermission("createClassLoader"))
         );
 
         this.defaultContextClassLoader =
@@ -162,17 +159,6 @@ public class RMIConnectionImpl implements RMIConnection, Unreferenced {
           RMIServerCommunicatorAdmin(EnvHelp.getServerConnectionTimeout(env));
 
         this.env = env;
-    }
-
-    private static AccessControlContext withPermissions(Permission ... perms){
-        Permissions col = new Permissions();
-
-        for (Permission thePerm : perms ) {
-            col.add(thePerm);
-        }
-
-        final ProtectionDomain pd = new ProtectionDomain(null, col);
-        return new AccessControlContext( new ProtectionDomain[] { pd });
     }
 
     private synchronized ServerNotifForwarder getServerNotifFwd() {
@@ -1346,7 +1332,7 @@ public class RMIConnectionImpl implements RMIConnection, Unreferenced {
                             return mbeanServer.getClassLoader(name);
                         }
                     },
-                    withPermissions(new MBeanPermission("*", "getClassLoader"))
+                    AccessController.getPrivilegedContext(new MBeanPermission("*", "getClassLoader"))
             );
         } catch (PrivilegedActionException pe) {
             throw (InstanceNotFoundException) extractException(pe);
@@ -1363,7 +1349,7 @@ public class RMIConnectionImpl implements RMIConnection, Unreferenced {
                             return mbeanServer.getClassLoaderFor(name);
                         }
                     },
-                    withPermissions(new MBeanPermission("*", "getClassLoaderFor"))
+                    AccessController.getPrivilegedContext(new MBeanPermission("*", "getClassLoaderFor"))
             );
         } catch (PrivilegedActionException pe) {
             throw (InstanceNotFoundException) extractException(pe);

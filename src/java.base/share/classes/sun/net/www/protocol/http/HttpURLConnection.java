@@ -1059,7 +1059,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
         SocketPermission p = URLtoSocketPermission(this.url);
         if (p != null) {
             try {
-                AccessController.doPrivilegedWithCombiner(
+                AccessController.doPrivileged(
                     new PrivilegedExceptionAction<>() {
                         public Void run() throws IOException {
                             plainConnect0();
@@ -1317,7 +1317,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
 
         if (p != null) {
             try {
-                return AccessController.doPrivilegedWithCombiner(
+                return AccessController.doPrivileged(
                     new PrivilegedExceptionAction<>() {
                         public OutputStream run() throws IOException {
                             return getOutputStream0();
@@ -1495,7 +1495,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
 
         if (p != null) {
             try {
-                return AccessController.doPrivilegedWithCombiner(
+                return AccessController.doPrivileged(
                     new PrivilegedExceptionAction<>() {
                         public InputStream run() throws IOException {
                             return getInputStream0();
@@ -2665,7 +2665,7 @@ public class HttpURLConnection extends java.net.HttpURLConnection {
 
         if (p != null) {
             try {
-                return AccessController.doPrivilegedWithCombiner(
+                return AccessController.doPrivileged(
                     new PrivilegedExceptionAction<>() {
                         public Boolean run() throws IOException {
                             return followRedirect0(loc, stat, locUrl0);

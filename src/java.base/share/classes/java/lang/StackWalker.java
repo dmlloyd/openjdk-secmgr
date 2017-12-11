@@ -426,6 +426,14 @@ public final class StackWalker {
         }
     }
 
+    static StackWalker getInstanceUnchecked(Set<Option> options) {
+        if (options.isEmpty()) {
+            return DEFAULT_WALKER;
+        }
+
+        return new StackWalker(toEnumSet(options));
+    }
+
     /*
      * Returns a defensive copy
      */

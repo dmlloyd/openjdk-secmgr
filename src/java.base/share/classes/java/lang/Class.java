@@ -48,7 +48,9 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.net.URL;
 import java.security.AccessController;
+import java.security.Permissions;
 import java.security.PrivilegedAction;
+import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,7 +66,6 @@ import jdk.internal.HotSpotIntrinsicCandidate;
 import jdk.internal.loader.BootLoader;
 import jdk.internal.loader.BuiltinClassLoader;
 import jdk.internal.misc.Unsafe;
-import jdk.internal.misc.VM;
 import jdk.internal.module.Resources;
 import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.ConstantPool;
@@ -2728,7 +2729,7 @@ public final class Class<T> implements java.io.Serializable,
 
 
     /** protection domain returned when the internal domain is null */
-    private static java.security.ProtectionDomain allPermDomain;
+    private static volatile java.security.ProtectionDomain rootDomain;
 
     /**
      * Returns the {@code ProtectionDomain} of this class.  If there is a
@@ -2755,20 +2756,33 @@ public final class Class<T> implements java.io.Serializable,
         if (sm != null) {
             sm.checkPermission(SecurityConstants.GET_PD_PERMISSION);
         }
-        java.security.ProtectionDomain pd = getProtectionDomain0();
+        return getProtectionDomainUnchecked();
+    }
+
+    ProtectionDomain getProtectionDomainUnchecked() {
+        ProtectionDomain pd = getProtectionDomain0();
         if (pd == null) {
-            if (allPermDomain == null) {
-                java.security.Permissions perms =
-                    new java.security.Permissions();
-                perms.add(SecurityConstants.ALL_PERMISSION);
-                allPermDomain =
-                    new java.security.ProtectionDomain(null, perms);
-            }
-            pd = allPermDomain;
+            pd = getRootProtectionDomain();
         }
         return pd;
     }
 
+    static ProtectionDomain getRootProtectionDomain() {
+        ProtectionDomain domain = rootDomain;
+        if (domain == null) {
+            Permissions perms = new Permissions();
+            perms.add(SecurityConstants.ALL_PERMISSION);
+            domain = new ProtectionDomain(null, perms);
+            synchronized (Class.class) {
+                if (rootDomain == null) {
+                    rootDomain = domain;
+                } else {
+                    domain = rootDomain;
+                }
+            }
+        }
+        return domain;
+    }
 
     /**
      * Returns the ProtectionDomain of this class.

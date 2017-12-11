@@ -32,9 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.WeakHashMap;
-import jdk.internal.misc.JavaSecurityAccess;
+
 import jdk.internal.misc.JavaSecurityProtectionDomainAccess;
-import static jdk.internal.misc.JavaSecurityProtectionDomainAccess.ProtectionDomainCache;
 import jdk.internal.misc.SharedSecrets;
 import sun.security.action.GetPropertyAction;
 import sun.security.provider.PolicyFile;
@@ -69,53 +68,6 @@ public class ProtectionDomain {
     private static final boolean filePermCompatInPD =
             "true".equals(GetPropertyAction.privilegedGetProperty(
                 "jdk.security.filePermCompat"));
-
-    private static class JavaSecurityAccessImpl implements JavaSecurityAccess {
-
-        private JavaSecurityAccessImpl() {
-        }
-
-        @Override
-        public <T> T doIntersectionPrivilege(
-                PrivilegedAction<T> action,
-                final AccessControlContext stack,
-                final AccessControlContext context) {
-            if (action == null) {
-                throw new NullPointerException();
-            }
-
-            return AccessController.doPrivileged(
-                action,
-                getCombinedACC(context, stack)
-            );
-        }
-
-        @Override
-        public <T> T doIntersectionPrivilege(
-                PrivilegedAction<T> action,
-                AccessControlContext context) {
-            return doIntersectionPrivilege(action,
-                AccessController.getContext(), context);
-        }
-
-        @Override
-        public ProtectionDomain[] getProtectDomains(AccessControlContext context) {
-            return context.getContext();
-        }
-
-        private static AccessControlContext getCombinedACC(
-            AccessControlContext context, AccessControlContext stack) {
-            AccessControlContext acc =
-                new AccessControlContext(context, stack.getCombiner(), true);
-
-            return new AccessControlContext(stack.getContext(), acc).optimize();
-        }
-    }
-
-    static {
-        // Set up JavaSecurityAccess in SharedSecrets
-        SharedSecrets.setJavaSecurityAccess(new JavaSecurityAccessImpl());
-    }
 
     /* CodeSource */
     private CodeSource codesource ;

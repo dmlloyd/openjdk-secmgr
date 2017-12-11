@@ -683,7 +683,7 @@ public abstract class ClassLoader {
                         sm.checkPackageAccess(packageName);
                         return null;
                     }
-                }, new AccessControlContext(new ProtectionDomain[] {pd}));
+                }, AccessController.getPrivilegedContext().with(pd));
             }
         }
     }

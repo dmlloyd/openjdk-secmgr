@@ -43,6 +43,7 @@ import javax.security.auth.SubjectDomainCombiner;
  * is augmented with the permissions granted to the set of principals present
  * in the supplied {@link Subject}.</p>
  */
+@SuppressWarnings("deprecation") // todo: this also should be deprecated
 public class JMXSubjectDomainCombiner extends SubjectDomainCombiner {
 
     public JMXSubjectDomainCombiner(Subject s) {

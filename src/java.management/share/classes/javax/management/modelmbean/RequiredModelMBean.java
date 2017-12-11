@@ -80,8 +80,6 @@ import javax.management.RuntimeErrorException;
 import javax.management.RuntimeOperationsException;
 import javax.management.ServiceNotFoundException;
 import javax.management.loading.ClassLoaderRepository;
-import jdk.internal.misc.JavaSecurityAccess;
-import jdk.internal.misc.SharedSecrets;
 
 import sun.reflect.misc.MethodUtil;
 import sun.reflect.misc.ReflectUtil;
@@ -142,7 +140,6 @@ public class RequiredModelMBean
     private boolean registered = false;
     private transient MBeanServer server = null;
 
-    private final static JavaSecurityAccess javaSecurityAccess = SharedSecrets.getJavaSecurityAccess();
     final private AccessControlContext acc = AccessController.getContext();
 
     /*************************************/
@@ -974,7 +971,7 @@ public class RequiredModelMBean
                     final String className = opClassName;
                     final ClassNotFoundException[] caughtException = new ClassNotFoundException[1];
 
-                    targetClass = javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Class<?>>() {
+                    targetClass = AccessController.doPrivileged(new PrivilegedAction<Class<?>>() {
 
                         @Override
                         public Class<?> run() {
@@ -989,7 +986,7 @@ public class RequiredModelMBean
                             }
                             return null;
                         }
-                    }, stack, acc);
+                    }, stack.with(acc));
 
                     if (caughtException[0] != null) {
                         throw caughtException[0];
@@ -1044,7 +1041,7 @@ public class RequiredModelMBean
             final ClassLoader targetClassLoader = targetClass.getClassLoader();
             argClasses = new Class<?>[sig.length];
 
-            javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Void>() {
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
 
                 @Override
                 public Void run() {
@@ -1071,7 +1068,7 @@ public class RequiredModelMBean
                     }
                     return null;
                 }
-            }, stack, acc);
+            }, stack.with(acc));
 
             if (caughtException[0] != null) {
                 throw caughtException[0];
@@ -1128,7 +1125,7 @@ public class RequiredModelMBean
         else {
             AccessControlContext stack = AccessController.getContext();
             final String className = opClassName;
-            targetClass = javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Class<?>>() {
+            targetClass = AccessController.doPrivileged(new PrivilegedAction<Class<?>>() {
 
                 @Override
                 public Class<?> run() {
@@ -1145,7 +1142,7 @@ public class RequiredModelMBean
                         return null;
                     }
                 }
-            }, stack, acc);
+            }, stack.with(acc));
         }
         try {
             return targetClass != null ? resolveMethod(targetClass, opMethodName, sig) : null;
@@ -1164,7 +1161,7 @@ public class RequiredModelMBean
         try {
             final Throwable[] caughtException = new Throwable[1];
             AccessControlContext stack = AccessController.getContext();
-            Object rslt = javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Object>() {
+            Object rslt = AccessController.doPrivileged(new PrivilegedAction<Object>() {
 
                 @Override
                 public Object run() {
@@ -1178,7 +1175,7 @@ public class RequiredModelMBean
                     }
                     return null;
                 }
-            }, stack, acc);
+            }, stack.with(acc));
             if (caughtException[0] != null) {
                 if (caughtException[0] instanceof Exception) {
                     throw (Exception)caughtException[0];
@@ -1582,7 +1579,7 @@ public class RequiredModelMBean
 
                                 AccessControlContext stack = AccessController.getContext();
 
-                                Class<?> c = javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Class<?>>() {
+                                Class<?> c = AccessController.doPrivileged(new PrivilegedAction<Class<?>>() {
 
                                     @Override
                                     public Class<?> run() {
@@ -1596,7 +1593,7 @@ public class RequiredModelMBean
                                         }
                                         return null;
                                     }
-                                }, stack, acc);
+                                }, stack.with(acc));
 
                                 if (caughException[0] != null) {
                                     throw caughException[0];
@@ -2669,7 +2666,7 @@ public class RequiredModelMBean
         AccessControlContext stack = AccessController.getContext();
         final ClassNotFoundException[] caughtException = new ClassNotFoundException[1];
 
-        Class<?> c = javaSecurityAccess.doIntersectionPrivilege(new PrivilegedAction<Class<?>>() {
+        Class<?> c = AccessController.doPrivileged(new PrivilegedAction<Class<?>>() {
 
             @Override
             public Class<?> run() {
@@ -2688,7 +2685,7 @@ public class RequiredModelMBean
                 }
                 return null;
             }
-        }, stack, acc);
+        }, stack.with(acc));
 
         if (caughtException[0] != null) {
             throw caughtException[0];

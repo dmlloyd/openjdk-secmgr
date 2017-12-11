@@ -651,14 +651,6 @@ public class ForkJoinPool extends AbstractExecutorService {
         public ForkJoinWorkerThread newThread(ForkJoinPool pool);
     }
 
-    static AccessControlContext contextWithPermissions(Permission ... perms) {
-        Permissions permissions = new Permissions();
-        for (Permission perm : perms)
-            permissions.add(perm);
-        return new AccessControlContext(
-            new ProtectionDomain[] { new ProtectionDomain(null, permissions) });
-    }
-
     /**
      * Default ForkJoinWorkerThreadFactory implementation; creates a
      * new ForkJoinWorkerThread using the system class loader as the
@@ -666,7 +658,7 @@ public class ForkJoinPool extends AbstractExecutorService {
      */
     private static final class DefaultForkJoinWorkerThreadFactory
         implements ForkJoinWorkerThreadFactory {
-        private static final AccessControlContext ACC = contextWithPermissions(
+        private static final AccessControlContext ACC = AccessController.getPrivilegedContext(
             new RuntimePermission("getClassLoader"),
             new RuntimePermission("setContextClassLoader"));
 
@@ -3267,7 +3259,7 @@ public class ForkJoinPool extends AbstractExecutorService {
          * An ACC to restrict permissions for the factory itself.
          * The constructed workers have no permissions set.
          */
-        private static final AccessControlContext ACC = contextWithPermissions(
+        private static final AccessControlContext ACC = AccessController.getPrivilegedContext(
             modifyThreadPermission,
             new RuntimePermission("enableContextClassLoaderOverride"),
             new RuntimePermission("modifyThreadGroup"),

@@ -37,6 +37,7 @@ package java.util.concurrent;
 
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.Permission;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 
@@ -215,9 +216,7 @@ public class ForkJoinWorkerThread extends Thread {
                 }});
 
         /** An AccessControlContext supporting no privileges */
-        private static final AccessControlContext INNOCUOUS_ACC =
-            new AccessControlContext(
-                new ProtectionDomain[] { new ProtectionDomain(null, null) });
+        private static final AccessControlContext INNOCUOUS_ACC = AccessController.getPrivilegedContext(new Permission[0]);
 
         InnocuousForkJoinWorkerThread(ForkJoinPool pool) {
             super(pool,

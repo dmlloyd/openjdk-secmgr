@@ -31,6 +31,7 @@ import com.sun.jmx.mbeanserver.Introspector;
 import java.io.IOException;
 import java.security.AccessControlContext;
 import java.security.AccessController;
+import java.security.Permission;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.List;
@@ -166,9 +167,8 @@ public abstract class Monitor
     /**
      * AccessControlContext of the Monitor.start() caller.
      */
-    private static final AccessControlContext noPermissionsACC =
-            new AccessControlContext(
-            new ProtectionDomain[] {new ProtectionDomain(null, null)});
+    private static final AccessControlContext noPermissionsACC = AccessController.getPrivilegedContext(new Permission[0]);
+
     private volatile AccessControlContext acc = noPermissionsACC;
 
     /**

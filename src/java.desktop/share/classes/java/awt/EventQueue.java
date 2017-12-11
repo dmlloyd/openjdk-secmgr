@@ -47,9 +47,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import java.security.AccessControlContext;
 
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaSecurityAccess;
-
 /**
  * {@code EventQueue} is a platform-independent class
  * that queues events, both from the underlying peer classes
@@ -669,9 +666,6 @@ public class EventQueue {
         return null;
     }
 
-    private static final JavaSecurityAccess javaSecurityAccess =
-        SharedSecrets.getJavaSecurityAccess();
-
     /**
      * Dispatches an event. The manner in which the event is
      * dispatched depends upon the type of the event and the
@@ -736,17 +730,7 @@ public class EventQueue {
         final AccessControlContext stack = AccessController.getContext();
         final AccessControlContext srcAcc = getAccessControlContextFrom(src);
         final AccessControlContext eventAcc = event.getAccessControlContext();
-        if (srcAcc == null) {
-            javaSecurityAccess.doIntersectionPrivilege(action, stack, eventAcc);
-        } else {
-            javaSecurityAccess.doIntersectionPrivilege(
-                new PrivilegedAction<Void>() {
-                    public Void run() {
-                        javaSecurityAccess.doIntersectionPrivilege(action, eventAcc);
-                        return null;
-                    }
-                }, stack, srcAcc);
-        }
+        AccessController.doPrivileged(action, stack.with(srcAcc).with(eventAcc));
     }
 
     private static AccessControlContext getAccessControlContextFrom(Object src) {

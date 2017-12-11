@@ -30,13 +30,10 @@ import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.UndeclaredThrowableException;
-import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Permission;
 import java.security.ProtectionDomain;
 import java.security.PrivilegedAction;
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaSecurityAccess;
 
 /**
  * ReflectionFactory supports custom serialization.
@@ -176,7 +173,6 @@ public class ReflectionFactory {
         if (sm == null || domains == null || domains.length == 0) {
             return cons.newInstance();
         } else {
-            JavaSecurityAccess jsa = SharedSecrets.getJavaSecurityAccess();
             PrivilegedAction<?> pea = () -> {
                 try {
                     return cons.newInstance();
@@ -187,9 +183,8 @@ public class ReflectionFactory {
                 }
             }; // Can't use PrivilegedExceptionAction with jsa
             try {
-                return jsa.doIntersectionPrivilege(pea,
-                           AccessController.getContext(),
-                           new AccessControlContext(domains));
+                return AccessController.doPrivileged(pea,
+                    AccessController.getContext().withAll(domains));
             } catch (UndeclaredThrowableException x) {
                 Throwable cause = x.getCause();
                  if (cause instanceof InstantiationException)

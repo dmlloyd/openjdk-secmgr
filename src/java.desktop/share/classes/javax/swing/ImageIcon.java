@@ -130,10 +130,7 @@ public class ImageIcon implements Icon, Serializable, Accessible {
                         return new Component() {
                         };
                     }
-                },
-                new AccessControlContext(new ProtectionDomain[]{
-                        new ProtectionDomain(null, null)
-                })
+                }, AccessController.getPrivilegedContext(new Permission[0])
         );
     }
 

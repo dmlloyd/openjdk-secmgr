@@ -35,6 +35,7 @@ import java.security.ProtectionDomain;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
@@ -273,4 +274,25 @@ public interface JavaLangAccess {
      * @throws IllegalArgumentException for malformed surrogates
      */
     byte[] getBytesUTF8NoRepl(String s);
+
+    /**
+     * Get and set the inherited access control context.
+     *
+     * @param thread the thread to inspect
+     * @param acc the new access control context
+     * @return the original inherited access control context
+     */
+    AccessControlContext getAndSetCurrentThreadAccessContext(Thread thread, AccessControlContext acc);
+
+    AccessControlContext getCurrentThreadAccessContext(Thread thread);
+
+    ProtectionDomain getProtectionDomain(Class<?> clazz);
+
+    StackWalker getStackWalkerInstance(Set<StackWalker.Option> options);
+
+    ProtectionDomain getRootProtectionDomain();
+
+    AccessControlContext getCachedAccessControlContext(StackWalker.StackFrame stackFrame);
+
+    void setCachedAccessControlContext(StackWalker.StackFrame stackFrame, AccessControlContext context);
 }

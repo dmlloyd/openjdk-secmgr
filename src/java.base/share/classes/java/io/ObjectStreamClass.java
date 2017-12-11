@@ -37,7 +37,6 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
-import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -58,8 +57,7 @@ import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.Reflection;
 import jdk.internal.reflect.ReflectionFactory;
 import sun.reflect.misc.ReflectUtil;
-import jdk.internal.misc.SharedSecrets;
-import jdk.internal.misc.JavaSecurityAccess;
+
 import static java.io.ObjectStreamField.*;
 
 /**
@@ -1080,7 +1078,6 @@ public class ObjectStreamClass implements Serializable {
                 if (domains == null || domains.length == 0) {
                     return cons.newInstance();
                 } else {
-                    JavaSecurityAccess jsa = SharedSecrets.getJavaSecurityAccess();
                     PrivilegedAction<?> pea = () -> {
                         try {
                             return cons.newInstance();
@@ -1091,9 +1088,7 @@ public class ObjectStreamClass implements Serializable {
                         }
                     }; // Can't use PrivilegedExceptionAction with jsa
                     try {
-                        return jsa.doIntersectionPrivilege(pea,
-                                   AccessController.getContext(),
-                                   new AccessControlContext(domains));
+                        return AccessController.doPrivileged(pea, AccessController.getContext().withAll(domains));
                     } catch (UndeclaredThrowableException x) {
                         Throwable cause = x.getCause();
                         if (cause instanceof InstantiationException)

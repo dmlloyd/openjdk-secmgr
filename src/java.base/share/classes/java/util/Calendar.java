@@ -3563,12 +3563,7 @@ public abstract class Calendar implements Serializable, Cloneable, Comparable<Ca
     private static class CalendarAccessControlContext {
         private static final AccessControlContext INSTANCE;
         static {
-            RuntimePermission perm = new RuntimePermission("accessClassInPackage.sun.util.calendar");
-            PermissionCollection perms = perm.newPermissionCollection();
-            perms.add(perm);
-            INSTANCE = new AccessControlContext(new ProtectionDomain[] {
-                                                    new ProtectionDomain(null, perms)
-                                                });
+            INSTANCE = AccessController.getPrivilegedContext(new RuntimePermission("accessClassInPackage.sun.util.calendar"));
         }
         private CalendarAccessControlContext() {
         }

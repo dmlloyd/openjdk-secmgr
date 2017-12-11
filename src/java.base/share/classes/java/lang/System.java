@@ -54,6 +54,7 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.PropertyPermission;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -2201,6 +2202,36 @@ public final class System {
                 return StringCoding.getBytesUTF8NoRepl(s);
             }
 
+            public AccessControlContext getAndSetCurrentThreadAccessContext(final Thread thread, final AccessControlContext acc) {
+                return thread.getAndSetCurrentContext(acc);
+            }
+
+            public AccessControlContext getCurrentThreadAccessContext(final Thread thread) {
+                return thread.getCurrentContext();
+            }
+
+            public ProtectionDomain getProtectionDomain(final Class<?> clazz) {
+                return clazz.getProtectionDomainUnchecked();
+            }
+
+            public StackWalker getStackWalkerInstance(final Set<StackWalker.Option> options) {
+                return StackWalker.getInstanceUnchecked(options);
+            }
+
+            public ProtectionDomain getRootProtectionDomain() {
+                return Class.getRootProtectionDomain();
+            }
+
+            public AccessControlContext getCachedAccessControlContext(final StackWalker.StackFrame stackFrame) {
+                // TODO: add JVM internals to cache ACC ref on each stack frame
+//                return ((LiveStackFrame) stackFrame).getCachedAccessControlContext();
+                return null;
+            }
+
+            public void setCachedAccessControlContext(final StackWalker.StackFrame stackFrame, final AccessControlContext context) {
+                // TODO: add JVM internals to cache ACC ref on each stack frame
+//                ((LiveStackFrame) stackFrame).setCachedAccessControlContext(context);
+            }
         });
     }
 }

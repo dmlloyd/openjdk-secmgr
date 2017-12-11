@@ -27,18 +27,15 @@ package javax.security.auth;
 
 import java.util.*;
 import java.io.*;
-import java.lang.reflect.*;
 import java.text.MessageFormat;
 import java.security.AccessController;
 import java.security.AccessControlContext;
 import java.security.DomainCombiner;
-import java.security.Permission;
-import java.security.PermissionCollection;
 import java.security.Principal;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedExceptionAction;
 import java.security.PrivilegedActionException;
-import java.security.ProtectionDomain;
+
+import jdk.internal.misc.JavaLangAccess;
+import jdk.internal.misc.SharedSecrets;
 import sun.security.util.ResourcesMgr;
 
 /**
@@ -102,6 +99,9 @@ public final class Subject implements java.io.Serializable {
 
     private static final long serialVersionUID = -8308522755600156056L;
 
+    static final JavaLangAccess LANG_ACCESS = SharedSecrets.getJavaLangAccess();
+    private static final InheritableThreadLocal<Subject> TL = new InheritableThreadLocal<>();
+
     /**
      * A {@code Set} that provides a view of all of this
      * Subject's Principals
@@ -129,9 +129,6 @@ public final class Subject implements java.io.Serializable {
     private static final int PRINCIPAL_SET = 1;
     private static final int PUB_CREDENTIAL_SET = 2;
     private static final int PRIV_CREDENTIAL_SET = 3;
-
-    private static final ProtectionDomain[] NULL_PD_ARRAY
-        = new ProtectionDomain[0];
 
     /**
      * Create an instance of a {@code Subject}
@@ -294,6 +291,7 @@ public final class Subject implements java.io.Serializable {
         // return the Subject from the DomainCombiner of the provided context
         return AccessController.doPrivileged
             (new java.security.PrivilegedAction<>() {
+            @SuppressWarnings("deprecation")
             public Subject run() {
                 DomainCombiner dc = acc.getDomainCombiner();
                 if (!(dc instanceof SubjectDomainCombiner)) {
@@ -352,14 +350,14 @@ public final class Subject implements java.io.Serializable {
         Objects.requireNonNull(action,
                 ResourcesMgr.getString("invalid.null.action.provided"));
 
-        // set up the new Subject-based AccessControlContext
-        // for doPrivileged
-        final AccessControlContext currentAcc = AccessController.getContext();
-
-        // call doPrivileged and push this new context on the stack
-        return java.security.AccessController.doPrivileged
-                                        (action,
-                                        createContext(subject, currentAcc));
+        final InheritableThreadLocal<Subject> threadLocal = TL;
+        final Subject old = threadLocal.get();
+        threadLocal.set(subject);
+        try {
+            return action.run();
+        } finally {
+            threadLocal.set(old);
+        }
     }
 
     /**
@@ -415,13 +413,18 @@ public final class Subject implements java.io.Serializable {
         Objects.requireNonNull(action,
                 ResourcesMgr.getString("invalid.null.action.provided"));
 
-        // set up the new Subject-based AccessControlContext for doPrivileged
-        final AccessControlContext currentAcc = AccessController.getContext();
-
-        // call doPrivileged and push this new context on the stack
-        return java.security.AccessController.doPrivileged
-                                        (action,
-                                        createContext(subject, currentAcc));
+        final InheritableThreadLocal<Subject> threadLocal = TL;
+        final Subject old = threadLocal.get();
+        threadLocal.set(subject);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            threadLocal.set(old);
+        }
     }
 
     /**
@@ -459,7 +462,10 @@ public final class Subject implements java.io.Serializable {
      *                  {@link AuthPermission#AuthPermission(String)
      *                  AuthPermission("doAsPrivileged")} permission to invoke
      *                  this method.
+     *
+     * @deprecated This method is no longer needed, blah blah blah
      */
+    @Deprecated
     public static <T> T doAsPrivileged(final Subject subject,
                         final java.security.PrivilegedAction<T> action,
                         final java.security.AccessControlContext acc) {
@@ -472,17 +478,18 @@ public final class Subject implements java.io.Serializable {
         Objects.requireNonNull(action,
                 ResourcesMgr.getString("invalid.null.action.provided"));
 
-        // set up the new Subject-based AccessControlContext
-        // for doPrivileged
-        final AccessControlContext callerAcc =
-                (acc == null ?
-                new AccessControlContext(NULL_PD_ARRAY) :
-                acc);
-
-        // call doPrivileged and push this new context on the stack
-        return java.security.AccessController.doPrivileged
-                                        (action,
-                                        createContext(subject, callerAcc));
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess javaLangAccess = LANG_ACCESS;
+        final AccessControlContext oldContext = javaLangAccess.getAndSetCurrentThreadAccessContext(thread, acc);
+        final InheritableThreadLocal<Subject> threadLocal = TL;
+        final Subject old = threadLocal.get();
+        threadLocal.set(subject);
+        try {
+            return action.run();
+        } finally {
+            threadLocal.set(old);
+            javaLangAccess.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
     /**
@@ -539,34 +546,22 @@ public final class Subject implements java.io.Serializable {
         Objects.requireNonNull(action,
                 ResourcesMgr.getString("invalid.null.action.provided"));
 
-        // set up the new Subject-based AccessControlContext for doPrivileged
-        final AccessControlContext callerAcc =
-                (acc == null ?
-                new AccessControlContext(NULL_PD_ARRAY) :
-                acc);
-
-        // call doPrivileged and push this new context on the stack
-        return java.security.AccessController.doPrivileged
-                                        (action,
-                                        createContext(subject, callerAcc));
-    }
-
-    private static AccessControlContext createContext(final Subject subject,
-                                        final AccessControlContext acc) {
-
-
-        return java.security.AccessController.doPrivileged
-            (new java.security.PrivilegedAction<>() {
-            public AccessControlContext run() {
-                if (subject == null) {
-                    return new AccessControlContext(acc, null);
-                } else {
-                    return new AccessControlContext
-                                        (acc,
-                                        new SubjectDomainCombiner(subject));
-            }
-            }
-        });
+        final Thread thread = Thread.currentThread();
+        final JavaLangAccess javaLangAccess = LANG_ACCESS;
+        final AccessControlContext oldContext = javaLangAccess.getAndSetCurrentThreadAccessContext(thread, acc);
+        final InheritableThreadLocal<Subject> threadLocal = TL;
+        final Subject old = threadLocal.get();
+        threadLocal.set(subject);
+        try {
+            return action.run();
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new PrivilegedActionException(e);
+        } finally {
+            threadLocal.set(old);
+            javaLangAccess.getAndSetCurrentThreadAccessContext(thread, oldContext);
+        }
     }
 
     /**
